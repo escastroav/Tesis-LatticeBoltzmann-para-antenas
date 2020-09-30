@@ -7,9 +7,9 @@ const int Lx=1;
 const int Ly=1;
 const int Lz=200;
 
+const double C=1.0/sqrt(2.0); // C<0.707 celdas/click
 const double eps0=1.0;
-const double mu0=1.0;//1.0/(C*C*eps0);
-const double C=1.0/sqrt(2.0*eps0*mu0); // C<0.707 celdas/click
+const double mu0=2.0;
 
 const double tau=0.5;
 const double Utau=1.0/tau;
@@ -27,7 +27,7 @@ private:
   double b[3][2][4][3]; //b[0][j][i][p]=b^p_ijx,b[1][j][i][p]=b^p_ijy,b[2][j][i][p]=b^p_ijz,
   
   double f[Lx][Ly][Lz][2][2][4][3], fnew[Lx][Ly][Lz][2][2][4][3]; // f[ix][iy][iz][r][j][i][p]
-   double f0[Lx][Ly][Lz][2], f0new[Lx][Ly][Lz][2]; // f[ix][iy][iz][r][j][i][p]
+  double f0[Lx][Ly][Lz][2], f0new[Lx][Ly][Lz][2]; // f[ix][iy][iz][r][j][i][p]
 public:
   LatticeBoltzmann(void);
   double rho(int ix, int iy, int iz, bool useNew);
@@ -40,8 +40,6 @@ public:
   //campos auxiliares
   double *Jp(double*E0,int ix, int iy, int iz, bool useNew);
   double *Ep(double*E0,double*Jp0,int ix, int iy, int iz, bool useNew);
-  //Otras cantidades macroscopicas
-  double U(double*E0,double*B0,int ix, int iy, int iz);
   //constantes dielectricas relativas
   double epsr(int ix, int iy, int iz){return (1.75+0.75*tanh((double)(iz-Lz/2)));};
   double mur(int ix, int iy, int iz){return 1.0;};
@@ -53,7 +51,7 @@ public:
   void Advection(void);
   void Init(double&rho0,double*D0,double*B0,double*H0,double*E0,double*J0,double*Jp0,double*Ep0);
   void BoundaryConditions(double&rho0,double*D0,double*B0,double*H0,double*E0,double*J0,double*Jp0,double*Ep0,int t);
-  void Print(const char * FileName,double*D0,double*E0,double*B0,double U0,bool useNew);
+  void Print(const char * FileName,double*D0,double*E0,bool useNew);
 };
 LatticeBoltzmann::LatticeBoltzmann(void){
   //Cargar los pesos (no aplican en ED)
@@ -166,17 +164,6 @@ double *LatticeBoltzmann::Ep(double*E0,double*Jp0,int ix, int iy, int iz, bool u
     sum[x] = E0[x]-Jp0[x]*factor;
   return sum;
 }
-double LatticeBoltzmann::U(double*E0,double*B0,int ix, int iy, int iz)
-{
-  double sumE=0,sumB=0,u=0;
-  for(int x=0;x<3;x++)
-    {
-      sumE += E0[x]*E0[x];
-      sumB += B0[x]*B0[x];
-    }
-  u = 0.5*(epsr(ix,iy,iz)*sumE+sumB/mur(ix,iy,iz));
-  return u;
-}
 double LatticeBoltzmann::feq(int ix,int iy, int iz,double *Jp0,double *Ep0,double *B0,int r,int j,int i,int p)
 {
   double f=0, vJp=0, eEp=0, bB=0;
@@ -188,7 +175,7 @@ double LatticeBoltzmann::feq(int ix,int iy, int iz,double *Jp0,double *Ep0,doubl
     }
   
   if(r==0)
-    {f = (0.0625*vJp) + (eps0*epsr(ix,iy,iz)*0.25*eEp) + (0.125*bB/(mu0*mur(ix,iy,iz)));}
+    {f = (0.0625*vJp) + (epsr(ix,iy,iz)*0.25*eEp) + (0.125*bB/(mur(ix,iy,iz)));}
   else if(r==1)
     {f = (0.0625*vJp) + (0.25*eEp) + (0.125*bB);}
   
@@ -257,7 +244,7 @@ void LatticeBoltzmann::Init(double&rho0,double*D0,double*B0,double*H0,double*E0,
 	    D0[0] = Eo*epsr(ix,iy,iz)*exp(-alp*(iz-iz0)*(iz-iz0));	
 	    B0[1] = Bo*exp(-alp*(iz-iz0)*(iz-iz0));
 	    rho0=rho(ix,iy,iz,false);//-2*alp*(iz-iz0)*D0[0];
-	    E0=E(D0,ix,iy,iz,false);//	H0=H(B0,ix,iy,iz,false);
+	    E0=E(D0,ix,iy,iz,false);	H0=H(B0,ix,iy,iz,false);
 	    J0=J(E0,ix,iy,iz,false);	
 	    Jp0=Jp(E0,ix,iy,iz,false);	Ep0=Ep(E0,Jp0,ix,iy,iz,false);
 	    
@@ -298,7 +285,7 @@ void LatticeBoltzmann::BoundaryConditions(double&rho0,double*D0,double*B0,double
 		}
   
 		}
-void LatticeBoltzmann::Print(const char * FileName,double*D0,double*E0,double*B0,double U0,bool useNew)
+void LatticeBoltzmann::Print(const char * FileName,double*D0,double*E0,bool useNew)
 {
   ofstream outputFile(FileName);
   //  double epsr0=0;
@@ -312,19 +299,14 @@ void LatticeBoltzmann::Print(const char * FileName,double*D0,double*E0,double*B0
       for(int iz=0;iz<Lz;iz++)
 	{
 	  D0=D(ix,iy,iz,useNew);	E0=E(D0,ix,iy,iz,useNew);
-	  B0=B(ix,iy,iz,useNew);       	U0=U(E0,B0,ix,iy,iz);
-	  outputFile
-	    << iz << "\t"
-	    << ((double)iz)*100/Lz << "\t"
-	    << E0[0]/Eo << "\t"
-	    << U0 << "\n";
+	  outputFile << iz << "\t" << E0[0]/Eo << "\n";
 	}
   outputFile.close();
 }
 int main(void)
 {
   LatticeBoltzmann LB = LatticeBoltzmann();
-  double rho0=0,U0=0;
+  double rho0=0;
   double* D0=new double[3];	D0[0]=0;D0[1]=0;D0[2]=0;
   double* B0=new double[3];	B0[0]=0;B0[1]=0;B0[2]=0;
   double* H0=new double[3];	H0[0]=0;H0[1]=0;H0[2]=0;
@@ -332,18 +314,21 @@ int main(void)
   double* Ep0=new double[3];	Ep0[0]=0;Ep0[1]=0;Ep0[2]=0;
   double* J0=new double[3];	J0[0]=0;J0[1]=0;J0[2]=0;
   double* Jp0=new double[3];	Jp0[0]=0;Jp0[1]=0;Jp0[2]=0;
-  int t=0,tmax=140*Lz/200;
+  int t=0,tmax=140;
 
   
 
   LB.Init(rho0,D0,B0,H0,E0,J0,Jp0,Ep0);//(rho0,B0,Jp0,Ep0);
-  //LB.Print("LB_TEST_T00.dat",D0,E0,B0,false);
+  //LB.BoundaryConditions(rho0,D0,B0,H0,E0,J0,Jp0,Ep0,0);
+  LB.Print("LB_TEST_T00.dat",D0,E0,false);
   for(t=0;t<tmax;t++)
     {
       LB.Colision(rho0,D0,B0,H0,E0,J0,Jp0,Ep0);
+      //LB.BoundaryConditions(rho0,D0,B0,H0,E0,J0,Jp0,Ep0,t);
       LB.Advection();
+      //if(t==1)LB.Print("LB_TEST_T0.dat",D0,E0,true);
     }
-  LB.Print("LB_TEST_T140.dat",D0,E0,B0,U0,true);
+  LB.Print("LB_TEST_T3.dat",D0,E0,true);
   delete(D0);	delete(B0);	delete(H0);	delete(E0);
   delete(Ep0);	delete(J0);	delete(Jp0);
   
