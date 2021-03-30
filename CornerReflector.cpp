@@ -1,24 +1,28 @@
 #include "headers/LB_ED_D3Q13.h"
 
-class Dipolo : public LatticeBoltzmann
+int Lx0=90;
+int Ly0=90;
+int Lz0=1;
+
+class Corner : public LatticeBoltzmann
 {
 private:
   double Eo=0.0001,Eop,lambda=16,T=lambda/C,omega=2*M_PI/T,k=omega/C;
-  double sigma0=10,thickness=0.8;
+  double sigma0=10,thickness=0.8,order=0.5;
   int offset=40;
-  int ix0=Lx/2,iy0=Ly/2,iz0=Lz/2;
+  int ix0=Lx0/2,iy0=Ly0/2,iz0=Lz0/2;
 
   double Emean=0;
 public:
-  Dipolo(void);
+  Corner(void);
   double SigmaReflectors(int ix, int iy, int iz);
-  void ColisioneDipolo(int&t);
+  void ColisioneCorner(int&t);
   void FreeBoundAdvection(void);
-  void InicieDipolo(void);
-  void ImprimirDipolo(const char* fileName,bool useNew);
-  double EtimeMean(vector3D&E0,int t);
+  void InicieCorner(void);
+  void ImprimirCorner(const char* fileName,bool useNew);
+  vector3D S(vector3D&E0, vector3D&H0);
 };
-Dipolo::Dipolo(void)
+Corner::Corner(void)
 {
   Eo=0.0001;
   lambda=16;
@@ -29,12 +33,13 @@ Dipolo::Dipolo(void)
   thickness=0.75;
   offset=3;
   sigma0=lambda/(offset*offset*M_PI*mu0*C);
+  order=0.5;
 
-  ix0=Lx/2;
-  iy0=Ly/2;
-  iz0=Lz/2;
+  ix0=(int)(lambda*order/sqrt(2))+offset;
+  iy0=(int)(lambda*order/sqrt(2))+offset;
+  iz0=Lz0/2;
 }
-double Dipolo::SigmaReflectors(int ix, int iy, int iz)
+double Corner::SigmaReflectors(int ix, int iy, int iz)
 {
   //en Y=0
   double Yplate = 0.5*(1-tanh(thickness*(-ix+offset)));
@@ -45,19 +50,20 @@ double Dipolo::SigmaReflectors(int ix, int iy, int iz)
 
   return plates;
 }
-double Dipolo::EtimeMean(vector3D&E0,int t)
+vector3D Corner::S(vector3D&E0,vector3D&H0)
 {
-  return norma(E0)*t/T;
+  vector3D s = E0^H0;
+  return s;
 }
-void Dipolo::ColisioneDipolo(int &t)
+void Corner::ColisioneCorner(int &t)
 {
   int ix=0,iy=0,iz=0,r=0,j=0,i=0,p=0;
   double Epsr=0,Mur=0,Sigma=0,denominator=0,factor=0;
   double rho0=0;
-  vector3D D0,B0,E0,H0,J0,Jp0,Ep0;
+  vector3D D0,B0,E0,H0,J0,Jp0,Ep0,S0;
   
   double Eo=0.0001,Eop,lambda=16,T=lambda/C,omega=2*M_PI/T,k=omega/C;
-  int ix0=(int)(lambda*0.5/sqrt(2))+offset,iy0=(int)(lambda*0.5/sqrt(2))+offset,iz0=Lz/2,l4=(int)(lambda*0.25);
+  int l4=(int)(lambda*0.25);
   
   for(ix=0;ix<Lx;ix++)
     for(iy=0;iy<Ly;iy++)
@@ -67,7 +73,7 @@ void Dipolo::ColisioneDipolo(int &t)
 	  denominator = Sigma/(1.0 + mu0*Sigma/(4.0*Epsr));
 	  factor = mu0/(4.0*Epsr);
 	  rho0=rho(ix,iy,iz,false);	 D0=D(ix,iy,iz,false);	     B0=B(ix,iy,iz,false);
-	  H0=H(B0,Mur);	 E0=E(D0,Epsr);
+	  H0=H(B0,Mur);	 E0=E(D0,Epsr);		S0=S(E0,H0);
 	  J0=J(E0,Sigma);	 //Jp0=Jp(E0,ix,iy,iz,false);
 
 	  Eop = Eo*exp(-0.25*((ix-ix0)*(ix-ix0)+(iy-iy0)*(iy-iy0)));
@@ -79,8 +85,7 @@ void Dipolo::ColisioneDipolo(int &t)
 	  
 	  Jp0[2] = Eop*sin(omega*t) + Jp(E0,denominator).z();
 	  Ep0=Ep(E0,Jp0,factor);
-	  
-	  Emean+=EtimeMean(E0,t);
+
 	  for(p=0;p<3;p++)
 	    for(i=0;i<4;i++)
 	      for(j=0;j<2;j++)
@@ -93,7 +98,7 @@ void Dipolo::ColisioneDipolo(int &t)
 		}
 	}
 }
-void Dipolo::FreeBoundAdvection(void)
+void Corner::FreeBoundAdvection(void)
 {
   int jx=0,jy=0,jz=0;
   for(int ix=0;ix<Lx;ix++)
@@ -115,7 +120,7 @@ void Dipolo::FreeBoundAdvection(void)
 		  f0(r,ix,iy,iz) = f0new.function(r,ix,iy,iz);
 		}
 }
-void Dipolo::InicieDipolo(void)
+void Corner::InicieCorner(void)
 {
   //double Eo=0.001,Bo=Eo/C,alp=0.01;
   //int iz0=40;
@@ -147,28 +152,42 @@ void Dipolo::InicieDipolo(void)
 		    }
 	  }
 }
-void Dipolo::ImprimirDipolo(const char* fileName,bool useNew)
+void Corner::ImprimirCorner(const char* fileName,bool useNew)
 {
   ofstream outputFile(fileName);
-  vector3D D0, B0;					     
-  int ix0 = Lx/2,iy0=Ly/2,iz0 = Lz/2;
-  double sigma=0;
+  vector3D D0, B0, E0, H0, S0;					     
+  int ix0 = Lx0/2,iy0=Ly0/2,iz0 = Lz0/2;
+  double R0=0,Eteorico=0;
+  double Epsr=1.0,Mur=1.0,S1=0,S2=0,Smean=0,r1=(2+order)*lambda,r2=(2.5+order)*lambda,angle=0;
   for(int ix=0;ix<Lx;ix++)
     for(int iy=0;iy<Ly;iy++)
-    for(int iz=0;iz<Lz;iz++)
-    {
-      D0=D(ix,iy,iz,useNew);	
-      B0=B(ix,iy,iz,useNew);
-      sigma=SigmaReflectors(ix,iy,iz);
-      outputFile
-	<< ix << "\t"
-	<< iy << "\t"
-	<< iz << "\t"
-	<< D0.z() << "\t"
-	<< sigma << "\t"
-	<< Emean << "\n";	      
-    }
-   outputFile.close();
+      for(int iz=0;iz<Lz;iz++)
+	{
+	  D0=D(ix,iy,iz,useNew);	E0=E(D0,Epsr);	
+	  B0=B(ix,iy,iz,useNew);	H0=H(B0,Mur);
+	  R0=sqrt(ix*ix+iy*iy);
+	  angle = atan2(iy/R0,ix/R0);
+	  S0=S(E0,H0);
+	  Eteorico=2*(cos(2*M_PI*order*cos(angle))-cos(2*M_PI*order*sin(angle)));
+	  if(ix==(int)(r1*cos(angle)) && iy==(int)(r1*sin(angle)))
+	    {
+	      S1=norma(S0);
+	      Smean=0;
+	    }else{Smean=0;}
+	  if(ix==(int)(r2*cos(angle)) && iy==(int)(r2*sin(angle)))
+	    {
+	      S2=norma(S0);
+	      Smean=0.5*(S1+S2);
+	    }else{Smean=0;}
+	  outputFile
+	    << ix << "\t"
+	    << iy << "\t"
+	    << angle << "\t"
+	    << norma(S0) << "\t"
+	    << Smean << "\t"	      
+	    << Eteorico << "\n";	      
+	}
+  outputFile.close();
 }
 int main(int argc, char * argv[])
 {
@@ -178,16 +197,17 @@ int main(int argc, char * argv[])
       return -1;
     }
   const char* fileName = argv[2];
-  Dipolo Dip = Dipolo();
+  Corner corner = Corner();
+  corner.ResizeDomain(Lx0,Ly0,Lz0);
   int t=0,tmax=atoi(argv[1]);
   
   
-  Dip.InicieDipolo();
+  corner.InicieCorner();
   for(t=0;t<tmax;t++)
     {
-      Dip.ColisioneDipolo(t);
-      Dip.FreeBoundAdvection();
+      corner.ColisioneCorner(t);
+      corner.FreeBoundAdvection();
     }
-  Dip.ImprimirDipolo(fileName,true);
+  corner.ImprimirCorner(fileName,true);
   return 0;
 }

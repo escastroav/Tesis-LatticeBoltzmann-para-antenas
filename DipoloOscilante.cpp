@@ -1,10 +1,14 @@
 #include "headers/LB_ED_D3Q13.h"
 
+int Lx0=100;
+int Ly0=100;
+int Lz0=100;
+
 class Dipolo : public LatticeBoltzmann
 {
 private:
   double Eo=0.0001,Eop,lambda=16,T=lambda/C,omega=2*M_PI/T,k=omega/C;
-  int ix0=Lx/2,iy0=Ly/2,iz0=Lz/2;
+  int ix0=Lx0/2,iy0=Ly0/2,iz0=Lz0/2;
 
   double Emean=0;
 public:
@@ -23,9 +27,9 @@ Dipolo::Dipolo(void)
   omega=2*M_PI/T;
   k=omega/C;
   
-  ix0=Lx/2;
-  iy0=Ly/2;
-  iz0=Lz/2;
+  ix0=Lx0/2;
+  iy0=Ly0/2;
+  iz0=Lz0/2;
 }
 double Dipolo::EtimeMean(vector3D&E0,int t)
 {
@@ -125,7 +129,7 @@ void Dipolo::ImprimirDipolo(const char* fileName,bool useNew)
 {
   ofstream outputFile(fileName);
   vector3D D0, B0;//, Jp0;					     
-  int ix0 = Lx/2,iy0=Ly/2,iz0 = Lz/2;
+  int ix0 = Lx0/2,iy0=Ly0/2,iz0 = Lz0/2;
   double sigma=0;
   for(int ix=0;ix<Lx;ix++)
     for(int iy=0;iy<Ly;iy++)
@@ -136,7 +140,8 @@ void Dipolo::ImprimirDipolo(const char* fileName,bool useNew)
       //Jp0[2]=Eo*exp(-0.25*((ix-ix0)*(ix-ix0)+(iy-iy0)*(iy-iy0)+(iz-iz0)*(iz-iz0)));
       outputFile
 	<< ix << "\t"
-	<< iy << "\t"
+	<< iy
+	<< "\t"
 	<< iz << "\t"
 	<< B0.y() << "\n";	      
     }
@@ -151,6 +156,7 @@ int main(int argc, char * argv[])
     }
   const char* fileName = argv[2];
   Dipolo Dip = Dipolo();
+  Dip.ResizeDomain(Lx0,Ly0,Lz0);
   int t=0,tmax=atoi(argv[1]);
   
   

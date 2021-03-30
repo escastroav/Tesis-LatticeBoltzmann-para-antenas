@@ -13,11 +13,11 @@ Actualizacion:
 #include "Distribution.h"
 #include "Vector.h"
 //using namespace std;
-
+/*
 const int Lx=1;
 const int Ly=1;
-const int Lz=200;
-
+const int Lz=100;
+*/
 //Constates e0 y mu0 (INTOCABLE).
 const double C=1.0/sqrt(2.0);
 const double eps0=1.0;
@@ -29,7 +29,7 @@ const double UmUtau=1-Utau;
 	       
 class LatticeBoltzmann{
 protected:
-
+  int Lx=1,Ly=1,Lz=1;
   double V0[3]={0.0,0.0,0.0};
   double e0[3]={0.0,0.0,0.0};
   double b0[3]={0.0,0.0,0.0};
@@ -38,13 +38,14 @@ protected:
   vector3D e[2][4][3]; //e[0][j][i][p]=e^p_ijx,e[1][j][i][p]=e^p_ijy,e[2][j][i][p]=e^p_ijz,
   vector3D b[2][4][3]; //b[0][j][i][p]=b^p_ijx,b[1][j][i][p]=b^p_ijy,b[2][j][i][p]=b^p_ijz,
 
-  Distribution f = Distribution(Lx,Ly,Lz,false);	Distribution fnew = Distribution(Lx,Ly,Lz,false);
+  Distribution f= Distribution(Lx,Ly,Lz,false);		Distribution fnew = Distribution(Lx,Ly,Lz,false);
   Distribution f0 = Distribution(Lx,Ly,Lz,true);	Distribution f0new = Distribution(Lx,Ly,Lz,true);
   
   //double f[Lx][Ly][Lz][2][2][4][3], fnew[Lx][Ly][Lz][2][2][4][3]; // f[ix][iy][iz][r][j][i][p]
   //double f0[Lx][Ly][Lz][2], f0new[Lx][Ly][Lz][2]; // f[ix][iy][iz][r]
 public:
   LatticeBoltzmann(void);
+  void ResizeDomain(int Lx0, int Ly0, int Lz0);
   double rho(int ix, int iy, int iz, bool useNew);
   //campos
   vector3D D(int ix, int iy, int iz, bool useNew);
@@ -69,7 +70,6 @@ public:
   void Imprimase(const char* fileName,bool useNew);
 };
 LatticeBoltzmann::LatticeBoltzmann(void){
-  
   int imp=0,rec=0,rec1=0,rec2=0;
   double pi4=M_PI*0.25, sq2=sqrt(2.0);
 
@@ -114,7 +114,12 @@ LatticeBoltzmann::LatticeBoltzmann(void){
     }
  
 }
-
+void LatticeBoltzmann::ResizeDomain(int Lx0, int Ly0, int Lz0)
+{
+  Lx=Lx0;	Ly=Ly0;		Lz=Lz0;
+  f = Distribution(Lx,Ly,Lz,false);	fnew = Distribution(Lx,Ly,Lz,false);
+  f0 = Distribution(Lx,Ly,Lz,true);	f0new = Distribution(Lx,Ly,Lz,true); 
+}
 double LatticeBoltzmann::rho(int ix, int iy, int iz, bool useNew)
 {
   double sum=0;

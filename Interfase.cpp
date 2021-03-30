@@ -1,5 +1,9 @@
 #include "headers/LB_ED_D3Q13.h"
 
+int Lx0=1;
+int Ly0=1;
+int Lz0=200;
+
 class Interfase : public LatticeBoltzmann
 {
 private:
@@ -128,6 +132,7 @@ int main(int argc, char * argv[])
     }
   const char* fileName = argv[3];
   Interfase inter = Interfase();
+  inter.ResizeDomain(Lx0,Ly0,Lz0);
   int t=0,tmax=atoi(argv[1]);
   
   
