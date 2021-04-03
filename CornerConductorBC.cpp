@@ -1,7 +1,7 @@
 #include "headers/LB_ED_D3Q13.h"
 
-int Lx0=99;
-int Ly0=99;
+int Lx0=200;
+int Ly0=200;
 int Lz0=1;
 
 class Corner : public LatticeBoltzmann
@@ -35,7 +35,7 @@ Corner::Corner(void)
   thickness=0.75;
   offset=1;
   sigma0=lambda/(offset*offset*M_PI*mu0*C);
-  order=1;
+  order=0.5;
 
   ix0=(int)(lambda*order/sqrt(2))+offset;
   iy0=(int)(lambda*order/sqrt(2))+offset;
@@ -84,7 +84,7 @@ void Corner::ColisioneCorner(int &t)
 	    Eop *= cos(k*(iz-iz0));
 	  else
 	    Eop *= exp(-0.75*(iz-iz0)*(iz-iz0));
-	  
+	  Jp0[0] = 0; Jp0[1] = 0;
 	  Jp0[2] = Eop*sin(omega*t);// + Jp(E0,denominator).z();
 	  Ep0=Ep(E0,Jp0,factor);
 
@@ -159,6 +159,7 @@ void Corner::PerfectConductor(void)
   double Epsr,Mur,Sigma,denominator,factor;
   double rho0; vector3D D0,B0,E0,H0,J0,Jp0,Ep0;
   int iyp=offset;
+  for(iyp=0;iyp<=offset;iyp++){
   for(int ix=offset;ix<Lx;ix++)
     {
       Epsr=epsr(ix,iyp,0);
@@ -214,34 +215,44 @@ void Corner::PerfectConductor(void)
 		fnew(r,j,p,i,iyp,iy,0) = feq(Epsr,Mur,Jp0,Ep0,B0,r,j,i,p);
 		f0new(r,iyp,iy,0) = feq0(rho0);		
 	      }
-    }
+    }}
 }
 
 void Corner::RadiationPattern(const char* fileName,bool useNew)
 {
   ofstream outputFile(fileName);
   vector3D D0, B0, E0, H0, S0;
-  double ix1=0, iy1=0, ix2=0, iy2=0;
-  double Epsr=1.0,Mur=1.0,deltaAng=M_PI*0.005;
-  double S1=0,S2=0,E1=0,E2=0,Smean=0, Eteorico=0;
-  double r1=(1.95+order)*lambda-2,r2=(2.2+order)*lambda-2,angle=0;
-  for(angle=0; angle<=M_PI*0.5;angle+=deltaAng)
+  int ixm=0,iym=0,ix1=0, iy1=0, ix2=0, iy2=0,ioffset=0;
+  double Epsr=1.0,Mur=1.0,deltaAng=M_PI*0.005,iAng=0;
+  double Smax=0,S1=0,S2=0,Emax=0,E1=0,E2=0,Smean=0, Eteorico=0;
+  double r1=(1.75+order)*lambda-1,r2=(2+order)*lambda-1,angle=0;
+  iAng=0;angle=M_PI*0.25;
+  ixm = floor(r2*cos(angle))+ioffset;
+  iym = floor(r2*sin(angle))+ioffset;
+  D0=D(ixm,iym,iz0,false);	E0=E(D0,Epsr);
+  B0=B(ixm,iym,iz0,false);	H0=H(B0,Mur);
+  S0=S(E0,H0);
+  Emax=norma(E0);
+  Smax=norma(S0);
+  for(angle=-iAng; angle<=M_PI*0.5+iAng;angle+=deltaAng)
     {
-      ix1 = (r1*cos(angle))+ix0;
-      iy1 = (r1*sin(angle))+iy0;
+      ix1 = round(2*r1*cos(angle))+ioffset;
+      iy1 = round(2*r1*sin(angle))+ioffset;
+      if(ix1>=0 && iy1>=0){
       D0=D(ix1,iy1,iz0,false);	E0=E(D0,Epsr);
       B0=B(ix1,iy1,iz0,false);	H0=H(B0,Mur);
       S0=S(E0,H0);
       E1=norma(E0);
-      S1=norma(S0);
+      S1=norma(S0);}
 
-      ix2 = (r2*cos(angle))+ix0;
-      iy2 = (r2*sin(angle))+iy0;
+      ix2 = round(2*r2*cos(angle))+ioffset;
+      iy2 = round(2*r2*sin(angle))+ioffset;
+      if(ix2>=0 && iy2>=0){
       D0=D(ix2,iy2,iz0,false);	E0=E(D0,Epsr);
       B0=B(ix2,iy2,iz0,false);	H0=H(B0,Mur);
       S0=S(E0,H0);
       E2=norma(E0);
-      S2=norma(S0);
+      S2=norma(S0);}
       
       Smean = 0.5*(S1+S2);
       Eteorico = 0.5*(cos(order*2*M_PI*cos(angle+M_PI*.25))-cos(order*2*M_PI*sin(angle+M_PI*0.25)));
@@ -252,10 +263,12 @@ void Corner::RadiationPattern(const char* fileName,bool useNew)
 	<< iy2 << "\t"
 	<< angle << "\t"	      
 	<< S1 << "\t"	      
-	<< S2 << "\t"	      
+	<< S2 << "\t"
+	<< Smax << "\t"
 	<< Smean << "\t"
 	<< E1 << "\t"
 	<< E2 << "\t"
+	<< Emax << "\t"
 	<< Eteorico << "\n";	      
     }
   outputFile.close();
