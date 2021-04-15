@@ -316,11 +316,7 @@ int main(int argc, char * argv[])
       corner.ColisioneCorner(t);
       corner.PerfectConductor();
       corner.FreeBoundAdvection();
-      if(t%2==0){
-	iter = to_string(t).c_str();
-	corner.ImprimirCorner(iter,true);}
     }
   corner.RadiationPattern(patternFile,true);
-  //corner.ImprimirCorner(fileName,true);
   return 0;
 }
