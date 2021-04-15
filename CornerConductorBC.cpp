@@ -318,5 +318,6 @@ int main(int argc, char * argv[])
       corner.FreeBoundAdvection();
     }
   corner.RadiationPattern(patternFile,true);
+  corner.ImprimirCorner(fileName,true);
   return 0;
 }
