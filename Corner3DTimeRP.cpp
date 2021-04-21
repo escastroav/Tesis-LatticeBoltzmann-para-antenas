@@ -1,9 +1,9 @@
 #include "headers/LB_ED_D3Q13.h"
 #include <string>
-int L=128;
+int L=100;
 int Lx0=L;
 int Ly0=L;
-int Lz0=1;
+int Lz0=L;
 double size=1;
 
 class Corner : public LatticeBoltzmann
@@ -25,7 +25,7 @@ public:
   void ColisioneCorner(int&t);
   void FreeBoundAdvection(void);
   void InicieCorner(void);
-  void PerfectConductor(void);
+  // void PerfectConductor(void);
   void RadiationPattern(int&t,double r);
   void ImprimirPattern(const char* fileName,double r,bool useNew);
   void ImprimirCorner(const char* fileName,bool useNew);
@@ -183,7 +183,7 @@ void Corner::InicieCorner(void)
 		      
 		    }
 	  }
-}
+}/*
 void Corner::PerfectConductor(void)
 {
   double Epsr,Mur,Sigma,denominator,factor;
@@ -246,7 +246,7 @@ void Corner::PerfectConductor(void)
 		f0new(r,iyp,iy,0) = feq0(rho0);		
 	      }
     }}
-}
+    }*/
 vector3D Corner::Interpolation(int ix1, int ix2,int iy1,int iy2,double x,double y,bool getB)
 {
   double u = (x-ix1)/(ix2-ix1);
@@ -308,13 +308,15 @@ void Corner::ImprimirCorner(const char* fileName,bool useNew)
  
   for(double ix=0;ix<Lx0;ix+=1.0)
     for(double iy=0;iy<Ly0;iy+=1.0)
+      for(double iz=0;iz<Lz0;iz+=1.0)      
       {
-	D0=D(ix,iy,iz0,false);//	E0=E(D0,Epsr);
-	B0=B(ix,iy,iz0,false);//	H0=H(B0,Mur);
+	D0=D(ix,iy,iz,false);//	E0=E(D0,Epsr);
+	B0=B(ix,iy,iz,false);//	H0=H(B0,Mur);
 	S0=S(D0,B0);
 	outputFile
-	<< ix*size << "\t"
-	<< iy*size << "\t"
+	<< ix << "\t"
+	<< iy << "\t"
+	<< iz << "\t"	  
 	<< norma(S0) << "\n";
       }
   outputFile.close();
