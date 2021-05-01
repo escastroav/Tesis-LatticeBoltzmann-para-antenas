@@ -10,22 +10,22 @@ class Corner : public LatticeBoltzmann
 {
 private:
   double Eo=0.0001,Eop,lambda=16,T=lambda/C,omega=2*M_PI/T,k=omega/C;
-  double sigma0=10,thickness=0.8,order=0.5,delta=1;
-  int offset=1;
+  double sigma0=10,alpha=0.8,thickness=1,order=0.5,delta=1;
+  int offset=1,width=1,length=1;
   int ix0=Lx0/2,iy0=Ly0/2,iz0=Lz0/2,n=100;
 
-  double Eref=0;
+  double Eref=0,sheet=0;
   vector<double> Emax;
   vector<double> Emin;
 public:
-  Corner(void);
+  Corner(double order0);
   double GetT(){return T;};
   double GetOrder(){return order;};
   double SigmaReflectors(int ix, int iy, int iz);
   void ColisioneCorner(int&t);
   void FreeBoundAdvection(void);
   void InicieCorner(void);
-  // void PerfectConductor(void);
+  void PerfectConductor(void);
   void RadiationPattern(int&t,double r);
   void ImprimirPattern(const char* fileName,double r,bool useNew);
   void ImprimirCorner(const char* fileName,bool useNew);
@@ -33,7 +33,7 @@ public:
   vector3D GetSField(int ix,int iy, int iz);
   vector3D S(vector3D&E0, vector3D&H0);
 };
-Corner::Corner(void)
+Corner::Corner(double order0)
 {
   Eo=0.0001;
   lambda=16;
@@ -41,28 +41,40 @@ Corner::Corner(void)
   omega=2*M_PI/T;
   k=omega/C;
   
-  thickness=1;
-  offset=1;
-  sigma0=10;//lambda/(delta*delta*M_PI*mu0*C);
-  order=0.5;
+  alpha=1;
+  thickness=2/alpha;
+  offset=2;
+  width=1.5*lambda;
+  length=1*lambda;
+  sigma0=lambda/(25*M_PI*mu0*C);
+  order=0.3;
 
-  ix0=(int)(lambda*order/sqrt(2))+offset;
-  iy0=(int)(lambda*order/sqrt(2))+offset;
+  ix0=(int)(lambda*order/sqrt(2))+offset+Lx0/2;
+  iy0=(int)(lambda*order/sqrt(2))+offset+Ly0/2;
   iz0=Lz0/2;
 
   Eref=2.091104e-5;
-  n=100;
+  n=360;
   Emax.resize(n);
   Emin.resize(n);
 }
 double Corner::SigmaReflectors(int ix, int iy, int iz)
 {
-  //en Y=0
-  double Yplate = 0.5*(1-tanh(thickness*(-ix+offset)));
-  //en X=0
-  double Xplate = 0.5*(1-tanh(thickness*(-iy+offset)));
+  //en Y=0 inf
+  int ixp=ix-Lx0/2, iyp=iy-Ly0/2, izp=iz-Lz0/2;
+  double Yplate_l = 0.5*(1-tanh(alpha*(offset-ixp)));
+  double Yplate_r = 0.5*(1+tanh(alpha*(offset+ixp)));
+  //en X=0 inf
+  double Xplate_l = 0.5*(1-tanh(alpha*(offset-iyp)));
+  double Xplate_r = 0.5*(1+tanh(alpha*(offset+iyp)));
   //bothplates
-  double plates = sigma0*(1-Yplate*Xplate);
+  double plates_l = 1-Yplate_l*Xplate_l;
+  double plates_r = Xplate_r*Yplate_r;
+  //cut_W
+  double cut_W = 0.25*(1+tanh(alpha*(length-iyp)))*(1+tanh(alpha*(length-ixp)));
+  double cut_H = 0.25*(1+tanh(alpha*(width+izp)))*(1+tanh(alpha*(width-izp)));
+  //real plates
+  double plates = sigma0*cut_W*cut_H*plates_r*plates_l;
 
   return plates;
 }
@@ -106,17 +118,17 @@ void Corner::ColisioneCorner(int &t)
 	  if(iz>=iz0-l4 && iz<=iz0+l4)
 	    Eop *= cos(k*(iz-iz0));
 	  else
-	    Eop *= exp(-0.75*(iz-iz0)*(iz-iz0));
+	    Eop *= 0;
 	  Jp0[0] = 0; Jp0[1] = 0;
-	  /* if(ix<=offset && iy<=offset)
+	  if(Sigma > 0.23840584404*sigma0)
 	    {
 	      Jp0[2]=Jp(E0,denominator).z();
 	    }
-	  else
-	  {*/
-	      Jp0[2] = Eop*sin(omega*t) + Jp(E0,denominator).z();
-	      // }
-	  Ep0=Ep(E0,Jp0,factor);
+	   else
+	     {
+	       Jp0[2] = Eop*sin(omega*t);// + Jp(E0,denominator).z();
+	     }
+	   Ep0=Ep(E0,Jp0,factor);
 
 	  for(p=0;p<3;p++)
 	    for(i=0;i<4;i++)
@@ -183,7 +195,7 @@ void Corner::InicieCorner(void)
 		      
 		    }
 	  }
-}/*
+}
 void Corner::PerfectConductor(void)
 {
   double Epsr,Mur,Sigma,denominator,factor;
@@ -246,7 +258,7 @@ void Corner::PerfectConductor(void)
 		f0new(r,iyp,iy,0) = feq0(rho0);		
 	      }
     }}
-    }*/
+}
 vector3D Corner::Interpolation(int ix1, int ix2,int iy1,int iy2,double x,double y,bool getB)
 {
   double u = (x-ix1)/(ix2-ix1);
@@ -278,14 +290,14 @@ void Corner::RadiationPattern(int&t,double r)
   vector3D E0, B0, S0;
   double x=0,y=0;
   int ix1=0, iy1=0, ix2=0, iy2=0,ia=0;
-  double angle=0,deltaAng=M_PI*0.5/n,Exy=0;
-  double r2=(r)*lambda+offset;
+  double angle=0,deltaAng=M_PI*2/n,Exy=0;
+  double r2=(r)*lambda;
   Emax.resize(n);
   for(ia=0; ia<n;ia++)
     {
       angle = ia*deltaAng;
-      x = r2*cos(angle)+offset;	ix1=floor(x);	ix2=ix1+1;
-      y = r2*sin(angle)+offset;	iy1=floor(y);	iy2=iy1+1;
+      x = r2*cos(angle)+Lx0/2;	ix1=floor(x);	ix2=ix1+1;
+      y = r2*sin(angle)+Ly0/2;	iy1=floor(y);	iy2=iy1+1;
       E0=Interpolation(ix1,ix2,iy1,iy2,x,y,false);
       B0=Interpolation(ix1,ix2,iy1,iy2,x,y,true);
       S0=S(E0,B0);
@@ -304,19 +316,30 @@ void Corner::ImprimirCorner(const char* fileName,bool useNew)
 {
   ofstream outputFile(fileName);
   vector3D D0, B0, S0;
+  double Sigma=0;
   //double Epsr=1.0,Mur=1.0,E2=0;
  
   for(double ix=0;ix<Lx0;ix+=1.0)
     for(double iy=0;iy<Ly0;iy+=1.0)
-      for(double iz=0;iz<Lz0;iz+=1.0)      
+      for(double iz=0;iz<Lz0;iz+=1.0)
       {
+	//Xplane=(abs(ix)<=offset+thickness);
+	//Yplane=(abs(iy)<=offset+thickness);	
+	Sigma = SigmaReflectors(ix,iy,iz);
+	if(Sigma > 0.23840584404*sigma0)	    
+	  sheet=1;	    
+	else	     
+	  sheet=0;
+	     
 	D0=D(ix,iy,iz,false);//	E0=E(D0,Epsr);
 	B0=B(ix,iy,iz,false);//	H0=H(B0,Mur);
 	S0=S(D0,B0);
 	outputFile
-	<< ix << "\t"
-	<< iy << "\t"
-	<< iz << "\t"	  
+	<< ix*size << "\t"
+	<< iy*size << "\t"
+	<< iz*size << "\t"
+	<< Sigma << "\t"
+	<< sheet << "\t"
 	<< norma(S0) << "\n";
       }
   outputFile.close();
@@ -325,12 +348,12 @@ void Corner::ImprimirPattern(const char* fileName,double r,bool useNew)
 {
   ofstream outputFile(fileName);
   int ia=0;
-  double x=0,y=0,angle=0,deltaAng=M_PI*0.5/n,Eteorico=0,r2=(r)*lambda+offset;
+  double x=0,y=0,angle=0,deltaAng=M_PI*2/n,Eteorico=0,r2=(r)*lambda;
   for(ia=0;ia<n;ia++)
     {
       angle=ia*deltaAng;
-      x = r2*cos(angle)+offset;
-      y = r2*sin(angle)+offset;
+      x = r2*cos(angle)+Lx0/2;
+      y = r2*sin(angle)+Ly0/2;
       Eteorico = 2*(cos(order*2*M_PI*cos(angle+M_PI*.25))-cos(order*2*M_PI*sin(angle+M_PI*0.25)));
       outputFile
 	<< x << "\t"
@@ -344,15 +367,16 @@ void Corner::ImprimirPattern(const char* fileName,double r,bool useNew)
 }
 int main(int argc, char * argv[])
 {
-  if(argc != 5)
+  if(argc != 6)
     {
-      cout << "Wrong parameters!! ./a.out time Sfile patternfile animate(0 or 1)";
+      cout << "Wrong parameters!! ./a.out time Sfile patternfile animate(0 or 1) 2order";
       return -1;
       }
   const char* fileName = argv[2];
   const char* patternFile = argv[3];
   const char* frameFile = ".dat";
-  Corner corner = Corner();
+  double orderN = atoi(argv[5]);
+  Corner corner = Corner(orderN);
   corner.ResizeDomain(Lx0,Ly0,Lz0);
   double T0 = corner.GetT(), order0 = corner.GetOrder(),NN = atoi(argv[1]);
   int t=0,tmax=NN*T0,T3=(NN-1)*T0,tp=0,frameSkip = 2;
@@ -363,18 +387,17 @@ int main(int argc, char * argv[])
   for(t=0;t<tmax;t++)
     {
       corner.ColisioneCorner(t);
-      //corner.PerfectConductor();
       corner.FreeBoundAdvection();
       if(anim && t%frameSkip==0)
 	{
 	  frameFile = to_string(t).c_str();
 	  corner.ImprimirCorner(frameFile,true);
-	}
+	  }
       if(t>=T3)
 	{
 	  tp=t-T3;
 	  corner.RadiationPattern(tp,r0);
-	}
+	  }
     }
   corner.ImprimirPattern(patternFile,r0,true);
   corner.ImprimirCorner(fileName,true);

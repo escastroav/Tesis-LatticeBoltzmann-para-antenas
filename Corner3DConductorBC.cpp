@@ -1,6 +1,5 @@
 #include "headers/LB_ED_D3Q13.h"
-#include<string>
-int L=100;
+int L=200;
 int Lx0=L;
 int Ly0=L;
 int Lz0=1;
@@ -18,7 +17,6 @@ private:
 public:
   Corner(void);
   double SigmaReflectors(int ix, int iy, int iz);
-  double GetPeriod(void){return T;};
   void ColisioneCorner(int&t);
   void FreeBoundAdvection(void);
   void InicieCorner(void);
@@ -31,15 +29,15 @@ public:
 Corner::Corner(void)
 {
   Eo=0.0001;
-  lambda=24;
+  lambda=16;
   T=lambda/C;
   omega=2*M_PI/T;
   k=omega/C;
   
   thickness=0.75;
-  offset=15;
-  sigma0=lambda/(25*M_PI*mu0*C);
-  order=0.5;
+  offset=1;
+  sigma0=lambda/(offset*offset*M_PI*mu0*C);
+  order=1;
 
   ix0=(int)(lambda*order/sqrt(2))+offset;
   iy0=(int)(lambda*order/sqrt(2))+offset;
@@ -250,20 +248,27 @@ void Corner::RadiationPattern(const char* fileName,bool useNew)
   ofstream outputFile(fileName);
   vector3D D0, B0, E0, H0, S0;
   double x=0,y=0;
-  int ix1=0, iy1=0, ix2=0, iy2=0;
-  double Epsr=1.0,Mur=1.0,deltaAng=M_PI*0.005;
+  int ixm=0,iym=0,ix1=0, iy1=0, ix2=0, iy2=0,ioffset=0;
+  double Epsr=1.0,Mur=1.0,deltaAng=M_PI*0.005,iAng=0;
   double Smax=0,S1=0,S2=0,Emax=0,E1=0,E2=0,Smean=0, Eteorico=0;
-  double r1=(3.25+order)*lambda+2,angle=0;
-  
-  for(angle=0; angle<=M_PI*0.5;angle+=deltaAng)
+  double r1=(10.5+order)*lambda+offset,r2=(4+order)*lambda,angle=0;
+  iAng=0;angle=M_PI*0.25;
+  ixm = round(r2*cos(angle))+ioffset;
+  iym = round(r2*sin(angle))+ioffset;
+  D0=D(ixm,iym,iz0,false);	E0=E(D0,Epsr);
+  B0=B(ixm,iym,iz0,false);	H0=H(B0,Mur);
+  S0=S(E0,H0);
+  Emax=norma(E0);
+  Smax=norma(S0);
+  for(angle=-iAng; angle<=M_PI*0.5+iAng;angle+=deltaAng)
     {
-      x = r1*cos(angle);	ix1=floor(x);	ix2=ix1+1;
-      y = r1*sin(angle);	iy1=floor(y);	iy2=iy1+1;
+      x = r1*cos(angle)+offset;	ix1=floor(x);	ix2=ix1+1;
+      y = r1*sin(angle)+offset;	iy1=floor(y);	iy2=iy1+1;
       
       D0=Interpolation(ix1,ix2,iy1,iy2,x,y);
       E0=E(D0,Epsr);
       E2=D0.z();
-      Eteorico = 2*(cos(order*2*M_PI*cos(angle+M_PI*.25))-cos(order*2*M_PI*sin(angle+M_PI*0.25)));
+      Eteorico = 0.5*(cos(order*2*M_PI*cos(angle+M_PI*.25))-cos(order*2*M_PI*sin(angle+M_PI*0.25)));
       outputFile
 	<< x << "\t"
 	<< y << "\t"
@@ -303,10 +308,8 @@ int main(int argc, char * argv[])
     }
   const char* fileName = argv[2];
   const char* patternFile = argv[3];
-  const char* iter = ".dat";
   Corner corner = Corner();
   corner.ResizeDomain(Lx0,Ly0,Lz0);
-  double T = corner.GetPeriod();
   int t=0,tmax=atoi(argv[1]);
   
   

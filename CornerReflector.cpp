@@ -1,14 +1,14 @@
 #include "headers/LB_ED_D3Q13.h"
 
-int Lx0=90;
-int Ly0=90;
+int Lx0=100;
+int Ly0=100;
 int Lz0=1;
 
 class Corner : public LatticeBoltzmann
 {
 private:
   double Eo=0.0001,Eop,lambda=16,T=lambda/C,omega=2*M_PI/T,k=omega/C;
-  double sigma0=10,thickness=0.8,order=0.5;
+  double sigma0=10,thickness=0.8,order=0.5,delta=1;
   int offset=40;
   int ix0=Lx0/2,iy0=Ly0/2,iz0=Lz0/2;
 
@@ -25,14 +25,14 @@ public:
 Corner::Corner(void)
 {
   Eo=0.0001;
-  lambda=16;
+  lambda=24;
   T=lambda/C;
   omega=2*M_PI/T;
   k=omega/C;
   
   thickness=0.75;
-  offset=3;
-  sigma0=lambda/(offset*offset*M_PI*mu0*C);
+  offset=5;
+  sigma0=lambda/(delta*delta*M_PI*mu0*C);
   order=0.5;
 
   ix0=(int)(lambda*order/sqrt(2))+offset;
@@ -61,8 +61,7 @@ void Corner::ColisioneCorner(int &t)
   double Epsr=0,Mur=0,Sigma=0,denominator=0,factor=0;
   double rho0=0;
   vector3D D0,B0,E0,H0,J0,Jp0,Ep0,S0;
-  
-  double Eo=0.0001,Eop,lambda=16,T=lambda/C,omega=2*M_PI/T,k=omega/C;
+ 
   int l4=(int)(lambda*0.25);
   
   for(ix=0;ix<Lx;ix++)
@@ -155,38 +154,21 @@ void Corner::InicieCorner(void)
 void Corner::ImprimirCorner(const char* fileName,bool useNew)
 {
   ofstream outputFile(fileName);
-  vector3D D0, B0, E0, H0, S0;					     
-  int ix0 = Lx0/2,iy0=Ly0/2,iz0 = Lz0/2;
-  double R0=0,Eteorico=0;
-  double Epsr=1.0,Mur=1.0,S1=0,S2=0,Smean=0,r1=(2+order)*lambda,r2=(2.5+order)*lambda,angle=0;
-  for(int ix=0;ix<Lx;ix++)
-    for(int iy=0;iy<Ly;iy++)
-      for(int iz=0;iz<Lz;iz++)
-	{
-	  D0=D(ix,iy,iz,useNew);	E0=E(D0,Epsr);	
-	  B0=B(ix,iy,iz,useNew);	H0=H(B0,Mur);
-	  R0=sqrt(ix*ix+iy*iy);
-	  angle = atan2(iy/R0,ix/R0);
-	  S0=S(E0,H0);
-	  Eteorico=2*(cos(2*M_PI*order*cos(angle))-cos(2*M_PI*order*sin(angle)));
-	  if(ix==(int)(r1*cos(angle)) && iy==(int)(r1*sin(angle)))
-	    {
-	      S1=norma(S0);
-	      Smean=0;
-	    }else{Smean=0;}
-	  if(ix==(int)(r2*cos(angle)) && iy==(int)(r2*sin(angle)))
-	    {
-	      S2=norma(S0);
-	      Smean=0.5*(S1+S2);
-	    }else{Smean=0;}
-	  outputFile
-	    << ix << "\t"
-	    << iy << "\t"
-	    << angle << "\t"
-	    << norma(S0) << "\t"
-	    << Smean << "\t"	      
-	    << Eteorico << "\n";	      
-	}
+  vector3D D0, B0, E0, H0, S0;
+  double Epsr=1.0,Mur=1.0,E2=0;
+ 
+  for(double ix=0;ix<Lx0;ix+=1.0)
+    for(double iy=0;iy<Ly0;iy+=1.0)
+      {
+	D0=D(ix,iy,iz0,false);	E0=E(D0,Epsr);
+	B0=B(ix,iy,iz0,false);	H0=H(B0,Mur);
+	S0=S(E0,H0);
+	outputFile
+	<< ix << "\t"
+	<< iy << "\t"
+	<< norma(E0) << "\t"
+	<< norma(S0) << "\n";
+      }
   outputFile.close();
 }
 int main(int argc, char * argv[])

@@ -7,8 +7,8 @@ int Lz0=1000;
 class SkinWave : public LatticeBoltzmann
 {
 private:
-  double Eo=0.001,Bo=Eo/C,omega=M_PI*0.02;
-  double sigma0=0.1; 
+  double Eo=0.001,Bo=Eo/C,omega=M_PI*0.01,delta=5;
+  double sigma0=1.292;
 public:
   SkinWave(void);
   double SigmaSkin(int iz);
@@ -23,6 +23,8 @@ SkinWave::SkinWave(void)
   Eo=0.001;
   Bo=Eo/C;
   omega=M_PI*0.01;
+  delta=5;
+  sigma0=1/(delta*delta*omega);
   
 }
 double SkinWave::SigmaSkin(int iz)
@@ -137,16 +139,17 @@ void SkinWave::InicieSkin(void)
 void SkinWave::ImprimirSkin(const char* fileName,bool useNew)
 {
   ofstream outputFile(fileName);
-  vector3D D0;					     
-  double sigma=0;
+  vector3D D0, E0;					     
+  double sigma=0,Epsr=0;
   for(int iz=0;iz<Lz;iz++)
     {
-      D0=D(0,0,iz,useNew);	     
+      Epsr=epsr(0,0,iz);
+      D0=D(0,0,iz,useNew);	E0=E(D0,Epsr);	     
       sigma = SigmaSkin(iz);
       
       outputFile
 	<< iz << "\t"	
-	<< D0.x() << "\t"	
+	<< E0.x() << "\t"	
 	<< sigma << "\n";	      
     }
    outputFile.close();
