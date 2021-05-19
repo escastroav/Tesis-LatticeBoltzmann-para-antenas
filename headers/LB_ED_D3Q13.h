@@ -11,7 +11,7 @@ Actualizacion:
 #include <fstream>
 #include <cmath>
 #include "Distribution.h"
-#include "Vector.h"
+//#include "Vector.h"
 //using namespace std;
 /*
 const int Lx=1;
@@ -34,9 +34,13 @@ protected:
   double e0[3]={0.0,0.0,0.0};
   double b0[3]={0.0,0.0,0.0};
   
-  double V[3][4][3]; vector3D v[3][4],v0;// V[0][i][p]=V^p_ix,  V[1][i][p]=V^p_iy, V[2][i][p]=V^p_iz
-  vector3D e[2][4][3]; //e[0][j][i][p]=e^p_ijx,e[1][j][i][p]=e^p_ijy,e[2][j][i][p]=e^p_ijz,
-  vector3D b[2][4][3]; //b[0][j][i][p]=b^p_ijx,b[1][j][i][p]=b^p_ijy,b[2][j][i][p]=b^p_ijz,
+  double V[3][4][3];
+  double vx[12];	double vy[12];	double vz[12];
+  double ex[24];	double ey[24];	double ez[24];
+  double bx[24];	double by[24];	double bz[24];
+  // V[0][i][p]=V^p_ix,  V[1][i][p]=V^p_iy, V[2][i][p]=V^p_iz
+// vector3D e[24]; //e[0][j][i][p]=e^p_ijx,e[1][j][i][p]=e^p_ijy,e[2][j][i][p]=e^p_ijz,
+// vector3D b[24]; //b[0][j][i][p]=b^p_ijx,b[1][j][i][p]=b^p_ijy,b[2][j][i][p]=b^p_ijz,
 
   Distribution f= Distribution(Lx,Ly,Lz,false);		Distribution fnew = Distribution(Lx,Ly,Lz,false);
   Distribution f0 = Distribution(Lx,Ly,Lz,true);	Distribution f0new = Distribution(Lx,Ly,Lz,true);
@@ -48,20 +52,34 @@ public:
   void ResizeDomain(int Lx0, int Ly0, int Lz0);
   double rho(int ix, int iy, int iz, bool useNew);
   //campos
-  vector3D D(int ix, int iy, int iz, bool useNew);
-  vector3D B(int ix, int iy, int iz, bool useNew);
-  vector3D E(vector3D&D0, double&epsr);
-  vector3D H(vector3D&B0, double&mur);
-  vector3D J(vector3D&E0, double&sigma);
+  double Dx(int ix, int iy, int iz, bool useNew);
+  double Dy(int ix, int iy, int iz, bool useNew);
+  double Dz(int ix, int iy, int iz, bool useNew);
+  double Bx(int ix, int iy, int iz, bool useNew);
+  double By(int ix, int iy, int iz, bool useNew);
+  double Bz(int ix, int iy, int iz, bool useNew);
+  double Ex(double&Dx0, double&epsr);
+  double Ey(double&Dy0, double&epsr);
+  double Ez(double&Dz0, double&epsr);
+  double Hx(double&Bx0, double&mur);
+  double Hy(double&By0, double&mur);
+  double Hz(double&Bz0, double&mur);
+  double Jx(double&Ex0, double&sigma);
+  double Jy(double&Ey0, double&sigma);
+  double Jz(double&Ez0, double&sigma);
   //campos auxiliares
-  vector3D Jp(vector3D&E0, double&denominator);
-  vector3D Ep(vector3D&E0, vector3D&Jp0, double&factor);
+  double Jxp(double&Ex0, double&denominator);
+  double Jyp(double&Ey0, double&denominator);
+  double Jzp(double&Ez0, double&denominator);
+  double Exp(double&Ex0, double&Jxp0, double&factor);
+  double Eyp(double&Ey0, double&Jyp0, double&factor);
+  double Ezp(double&Ez0, double&Jzp0, double&factor);
   //constantes dielectricas relativas
   double epsr(int ix, int iy, int iz){return 1.0;}; 
   double mur(int ix, int iy, int iz){return 1.0;};
   double sigma(int ix, int iy, int iz){return 0.0;};
   //funciones de equilibrio
-  double feq(double&epsr,double&mur,vector3D&Jp0,vector3D&Ep0,vector3D&B0,int r,int j,int i,int p);
+  double feq(double&epsr,double&mur,double&vJp,double&eEp,double&bB,int r);
   double feq0(double&rho0);
   void Colisione(int &t);
   void Adveccione(void);
@@ -90,10 +108,13 @@ LatticeBoltzmann::LatticeBoltzmann(void){
   V[0][3][2]=0;	V[1][3][2]=1;	V[2][3][2]=-1;	//Plano YZ p=2
   
   //Los vectores Velocidad V[p][i]=V^p_i como vectores
-  v0.cargue(V0[0],V0[1],V0[2]);
+  //v0.cargue(V0[0],V0[1],V0[2]);
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++){
-      v[p][i].cargue(V[0][i][p],V[1][i][p],V[2][i][p]);
+      //v[p*4+i].cargue(V[0][i][p],V[1][i][p],V[2][i][p]);
+      vx[p*4+i] = V[0][i][p];
+      vy[p*4+i] = V[1][i][p];
+      vz[p*4+i] = V[2][i][p];
   }
   
   for(int p=0;p<3;p++)
@@ -101,16 +122,26 @@ LatticeBoltzmann::LatticeBoltzmann(void){
       {
 	rec=i%4; rec1=(i+1)%4; rec2=(i+2)%4;
 
-	e[0][rec1][p]=v[p][rec2]*0.5;
-	e[1][rec1][p]=v[p][rec]*0.5;
+	ex[rec1*2+p*8]=vx[p*4+rec2]*0.5;
+	ex[1+rec1*2+p*8]=vx[p*4+rec]*0.5;
+	ey[rec1*2+p*8]=vy[p*4+rec2]*0.5;
+	ey[1+rec1*2+p*8]=vy[p*4+rec]*0.5;
+	ez[rec1*2+p*8]=vz[p*4+rec2]*0.5;
+	ez[1+rec1*2+p*8]=vz[p*4+rec]*0.5;
       }
   for(int i=0;i<4;i++)
-    {
-      b[0][i][0].cargue(0,0,1);		b[1][i][0].cargue(0,0,-1);
+    {/*
+      b[i*2].cargue(0,0,1);		b[1+i*2].cargue(0,0,-1);
 
-      b[0][i][1].cargue(0,-1,0);       	b[1][i][1].cargue(0,1,0);
+      b[i*2+8].cargue(0,-1,0);       	b[1+i*2+8].cargue(0,1,0);
       
-      b[0][i][2].cargue(1,0,0);		b[1][i][2].cargue(-1,0,0);
+      b[i*2+16].cargue(1,0,0);		b[1+i*2+16].cargue(-1,0,0);*/
+      bx[i*2]=0;	by[i*2]=0;	bz[i*2]=1;
+      bx[i*2+1]=0;	by[i*2+1]=0;	bz[i*2+1]=-1;
+      bx[i*2+8]=0;	by[i*2+8]=-1;	bz[i*2+8]=0;
+      bx[1+i*2+8]=0;	by[1+i*2+8]=1;	bz[1+i*2+8]=0;
+      bx[i*2+16]=1;	by[i*2+16]=0;	bz[i*2+16]=0;
+      bx[1+i*2+16]=-1;	by[1+i*2+16]=0;	bz[1+i*2+16]=0;
     }
  
 }
@@ -130,78 +161,168 @@ double LatticeBoltzmann::rho(int ix, int iy, int iz, bool useNew)
   sum += f0(0,ix,iy,iz);
   return sum;
 }
-vector3D LatticeBoltzmann::D(int ix, int iy, int iz, bool useNew)
+double LatticeBoltzmann::Dx(int ix, int iy, int iz, bool useNew)
 {
-  vector3D sum; sum.cargue(0,0,0);
+  double sum=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
       for(int j=0;j<2;j++)	
-	sum += useNew? fnew.function(0,j,p,i,ix,iy,iz)*e[j][i][p] : f.function(0,j,p,i,ix,iy,iz)*e[j][i][p];
+	sum += useNew? fnew.function(0,j,p,i,ix,iy,iz)*ex[j+i*2+p*8] : f.function(0,j,p,i,ix,iy,iz)*ex[j+i*2+p*8];
   return sum;
-  
 }
-vector3D LatticeBoltzmann::B(int ix, int iy, int iz, bool useNew)
+double LatticeBoltzmann::Dy(int ix, int iy, int iz, bool useNew)
 {
-  vector3D sum; sum.cargue(0,0,0);
+  double sum=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
       for(int j=0;j<2;j++)	
-	sum += useNew? fnew.function(1,j,p,i,ix,iy,iz)*b[j][i][p] : f.function(1,j,p,i,ix,iy,iz)*b[j][i][p];
+	sum += useNew? fnew.function(0,j,p,i,ix,iy,iz)*ey[j+i*2+p*8] : f.function(0,j,p,i,ix,iy,iz)*ey[j+i*2+p*8];
   return sum;
-  
 }
-vector3D LatticeBoltzmann::E(vector3D&D0, double&epsr)
+double LatticeBoltzmann::Dz(int ix, int iy, int iz, bool useNew)
 {
-  vector3D sum; sum.cargue(0,0,0);
-  
-  sum = D0*(1.0/epsr);
+  double sum=0;
+  for(int p=0;p<3;p++)
+    for(int i=0;i<4;i++)      
+      for(int j=0;j<2;j++)	
+	sum += useNew? fnew.function(0,j,p,i,ix,iy,iz)*ez[j+i*2+p*8] : f.function(0,j,p,i,ix,iy,iz)*ez[j+i*2+p*8];
   return sum;
-  
 }
-vector3D LatticeBoltzmann::H(vector3D&B0, double&mur)
+double LatticeBoltzmann::Bx(int ix, int iy, int iz, bool useNew)
 {
-  vector3D sum; sum.cargue(0,0,0);
+  double sum=0;
+  for(int p=0;p<3;p++)
+    for(int i=0;i<4;i++)      
+      for(int j=0;j<2;j++)	
+	sum += useNew? fnew.function(1,j,p,i,ix,iy,iz)*bx[j+i*2+p*8] : f.function(1,j,p,i,ix,iy,iz)*bx[j+i*2+p*8];
+  return sum;
+}
+double LatticeBoltzmann::By(int ix, int iy, int iz, bool useNew)
+{
+  double sum=0;
+  for(int p=0;p<3;p++)
+    for(int i=0;i<4;i++)      
+      for(int j=0;j<2;j++)	
+	sum += useNew? fnew.function(1,j,p,i,ix,iy,iz)*by[j+i*2+p*8] : f.function(1,j,p,i,ix,iy,iz)*by[j+i*2+p*8];
+  return sum;
+}
+double LatticeBoltzmann::Bz(int ix, int iy, int iz, bool useNew)
+{
+  double sum=0;
+  for(int p=0;p<3;p++)
+    for(int i=0;i<4;i++)      
+      for(int j=0;j<2;j++)	
+	sum += useNew? fnew.function(1,j,p,i,ix,iy,iz)*bz[j+i*2+p*8] : f.function(1,j,p,i,ix,iy,iz)*bz[j+i*2+p*8];
+  return sum;
+}
+double LatticeBoltzmann::Ex(double&Dx0, double&epsr)
+{
+  double sum=0;
+  
+  sum = Dx0*(1.0/epsr);
+  return sum;
+}
+double LatticeBoltzmann::Ey(double&Dy0, double&epsr)
+{
+  double sum=0;
+  
+  sum = Dy0*(1.0/epsr);
+  return sum;
+}
+double LatticeBoltzmann::Ez(double&Dz0, double&epsr)
+{
+  double sum=0;
+  
+  sum = Dz0*(1.0/epsr);
+  return sum;
+}
+double LatticeBoltzmann::Hx(double&Bx0, double&mur)
+{
+  double sum=0;
 
-  sum = B0*(1.0/mur);
+  sum = Bx0*(1.0/mur);
   return sum;
-  
 }
-vector3D LatticeBoltzmann::J(vector3D&E0, double&sigma)
+double LatticeBoltzmann::Hy(double&By0, double&mur)
 {
-  vector3D sum; sum.cargue(0,0,0);
+  double sum=0;
 
-  sum = E0*sigma;
+  sum = By0*(1.0/mur);
+  return sum;
+}
+double LatticeBoltzmann::Hz(double&Bz0, double&mur)
+{
+  double sum=0;
+
+  sum = Bz0*(1.0/mur);
+  return sum;
+}
+double LatticeBoltzmann::Jx(double&Ex0, double&sigma)
+{
+  double sum=0;
+
+  sum = Ex0*sigma;
   return sum; 
-  
 }
-vector3D LatticeBoltzmann::Jp(vector3D&E0, double&denominator)
+double LatticeBoltzmann::Jy(double&Ey0, double&sigma)
 {
-  //double denominator = sigma(ix,iy,iz)/(1.0 + mu0*sigma(ix,iy,iz)/(4.0*epsr(ix,iy,iz)));
-  vector3D sum; sum.cargue(0,0,0);
+  double sum=0;
 
-  sum = E0*denominator;
+  sum = Ey0*sigma;
   return sum; 
 }
-vector3D LatticeBoltzmann::Ep(vector3D&E0,vector3D&Jp0,double&factor)
+double LatticeBoltzmann::Jz(double&Ez0, double&sigma)
 {
-  //double factor = mu0/(4.0*epsr(ix,iy,iz));
-  vector3D sum; sum.cargue(0,0,0);
+  double sum=0;
 
-  sum = E0-Jp0*factor;
+  sum = Ez0*sigma;
+  return sum; 
+}
+double LatticeBoltzmann::Jxp(double&Ex0, double&denominator)
+{
+  double sum=0;
+
+  sum = Ex0*denominator;
+  return sum; 
+}
+double LatticeBoltzmann::Jyp(double&Ey0, double&denominator)
+{
+  double sum=0;
+
+  sum = Ey0*denominator;
+  return sum; 
+}
+double LatticeBoltzmann::Jzp(double&Ez0, double&denominator)
+{
+  double sum=0;
+
+  sum = Ez0*denominator;
+  return sum; 
+}
+double LatticeBoltzmann::Exp(double&Ex0,double&Jxp0,double&factor)
+{
+  double sum=0;
+
+  sum = Ex0-Jxp0*factor;
   return sum;
 }
-double LatticeBoltzmann::feq(double&epsr,double&mur,vector3D&Jp0,vector3D&Ep0,vector3D&B0,int r,int j,int i,int p)
+double LatticeBoltzmann::Eyp(double&Ey0,double&Jyp0,double&factor)
 {
-  double f=0, vJp=0, eEp=0, bB=0;
-  vJp = (v[p][i]*Jp0);	eEp = (e[j][i][p]*Ep0);	bB = (b[j][i][p]*B0);
-  /*for(int x=0;x<3;x++)
-    {
-      vJp += V[x][i][p]*Jp0[x];
-      eEp += e[x][j][i][p]*Ep0[x];
-      bB  += b[x][j][i][p]*B0[x];
-      }*/
-  
-  //OJO. la funcion de equilibrio esta escrita en terminos de epsilon y mu relativos!!
+  double sum=0;
+
+  sum = Ey0-Jyp0*factor;
+  return sum;
+}
+double LatticeBoltzmann::Ezp(double&Ez0,double&Jzp0,double&factor)
+{
+  double sum=0;
+
+  sum = Ez0-Jzp0*factor;
+  return sum;
+}
+double LatticeBoltzmann::feq(double&epsr, double&mur, double&vJp, double&eEp, double&bB,int r)
+{
+  double f=0;
   if(r==0)
     {f = (0.0625*vJp) + (epsr*0.25*eEp) + (0.125*bB/(mur));}
   else if(r==1)
@@ -218,7 +339,10 @@ void LatticeBoltzmann::Colisione(int &t)
   int ix=0,iy=0,iz=0,r=0,j=0,i=0,p=0;
   double Epsr=0,Mur=0,Sigma=0,denominator=0,factor=0;
   double rho0=0;
-  vector3D D0,B0,E0,H0,J0,Jp0,Ep0;
+  double Dx0,Bx0,Ex0,Hx0,Jx0,Jxp0,Exp0;
+  double Dy0,By0,Ey0,Hy0,Jy0,Jyp0,Eyp0;
+  double Dz0,Bz0,Ez0,Hz0,Jz0,Jzp0,Ezp0;
+  double vJp, eEp, bB;
   
   for(ix=0;ix<Lx;ix++)
     for(iy=0;iy<Ly;iy++)
@@ -227,17 +351,26 @@ void LatticeBoltzmann::Colisione(int &t)
 	  Epsr=epsr(ix,iy,iz);		Mur=mur(ix,iy,iz);	     Sigma=sigma(ix,iy,iz);
 	  denominator = Sigma/(1.0 + mu0*Sigma/(4.0*Epsr));
 	  factor = mu0/(4.0*Epsr);
-	  rho0=rho(ix,iy,iz,false);	 D0=D(ix,iy,iz,false);	     B0=B(ix,iy,iz,false);
-	  H0=H(B0,Mur);			 E0=E(D0,Epsr);
-	  J0=J(E0,Sigma);		 Jp0=Jp(E0,denominator);
-	  Ep0=Ep(E0,Jp0,factor);
+	  rho0=rho(ix,iy,iz,false);
+	  Dx0=Dx(ix,iy,iz,false);Dy0=Dy(ix,iy,iz,false);Dz0=Dz(ix,iy,iz,false);
+	  Bx0=Bx(ix,iy,iz,false);By0=By(ix,iy,iz,false);Bz0=Bz(ix,iy,iz,false);
+	  Hx0=Hx(Bx0,Mur);Hy0=Hy(By0,Mur);Hz0=Hz(Bz0,Mur);
+	  Ex0=Ex(Dx0,Epsr);Ey0=Ey(Dy0,Epsr);Ez0=Ez(Dz0,Epsr);
+	  Jx0=Jx(Ex0,Sigma);Jy0=Jy(Ey0,Sigma);Jz0=Jz(Ez0,Sigma);
+	  Jxp0=Jxp(Ex0,denominator);Jyp0=Jyp(Ey0,denominator);Jzp0=Jzp(Ez0,denominator);
+	  Exp0=Exp(Ex0,Jxp0,factor);Eyp0=Eyp(Ey0,Jyp0,factor);Ezp0=Ezp(Ez0,Jzp0,factor);
 	  
+	  
+  
 	  for(r=0;r<2;r++)
 	    for(p=0;p<3;p++)
 	      for(i=0;i<4;i++)
 		for(j=0;j<2;j++)
-		  { 
-		    fnew(r,j,p,i,ix,iy,iz)=UmUtau*f.function(r,j,p,i,ix,iy,iz)+Utau*feq(Epsr,Mur,Jp0,Ep0,B0,r,j,i,p);
+		  {
+		    vJp = (vx[p*4+i]*Jxp0+vy[p*4+i]*Jyp0+vz[p*4+i]*Jzp0);
+		    eEp = (ex[j+i*2+p*8]*Exp0+ey[j+i*2+p*8]*Eyp0+ez[j+i*2+p*8]*Ezp0);
+		    bB = (bx[j+i*2+p*8]*Bx0+by[j+i*2+p*8]*By0+bz[j+i*2+p*8]*Bz0);
+		    fnew(r,j,p,i,ix,iy,iz)=UmUtau*f.function(r,j,p,i,ix,iy,iz)+Utau*feq(Epsr,Mur,vJp,eEp,bB,r);
 		    f0new(r,ix,iy,iz)=UmUtau*f0.function(r,ix,iy,iz)+Utau*feq0(rho0);
 		  }
 	}
@@ -267,7 +400,8 @@ void LatticeBoltzmann::Adveccione(void)
 void LatticeBoltzmann::Inicie(void)
 {
   double Epsr,Mur;
-  double rho0; vector3D D0,B0,E0,H0,J0,Jp0,Ep0;
+  double rho0;
+  double vJp, eEp, bB;
   for(int ix=0;ix<Lx;ix++)
     for(int iy=0;iy<Ly;iy++)
       for(int iz=0;iz<Lz;iz++)
@@ -275,20 +409,13 @@ void LatticeBoltzmann::Inicie(void)
 	    Epsr=epsr(ix,iy,iz);
 	    Mur=mur(ix,iy,iz);
 	    rho0=0;
-	    D0.cargue(0,0,0);
-	    B0.cargue(0,0,0);
-	    E0.cargue(0,0,0);
-	    H0.cargue(0,0,0);
-	    J0.cargue(0,0,0);
-	    Jp0.cargue(0,0,0);
-	    Ep0.cargue(0,0,0);
-
+	    vJp=eEp=bB=0;
 	    for(int r=0;r<2;r++)
 	      for(int p=0;p<3;p++)
 		for(int i=0;i<4;i++)
 		  for(int j=0;j<2;j++)
 		    {
-		      f(r,j,p,i,ix,iy,iz) = feq(Epsr,Mur,Jp0,Ep0,B0,r,j,i,p);
+		      f(r,j,p,i,ix,iy,iz) = feq(Epsr,Mur,vJp,eEp,bB,r);
 		      f0(r,ix,iy,iz) = feq0(rho0);
 		    }
 	  }
@@ -296,24 +423,20 @@ void LatticeBoltzmann::Inicie(void)
 void LatticeBoltzmann::Imprimase(const char* fileName,bool useNew)
 {
   ofstream outputFile(fileName);
-  vector3D D0, B0;					     
+  double Dx0, Bx0;					     
   int ix0 = Lx/2,iy0=Ly/2,iz0 = Lz/2;
   for(int ix=0;ix<Lx;ix++)
     for(int iy=0;iy<Ly;iy++)
     for(int iz=0;iz<Lz;iz++)
     {
-      D0=D(ix,iy,iz,useNew);	
-      B0=B(ix,iy,iz,useNew);
+      Dx0=Dx(ix,iy,iz,useNew);	
+      Bx0=Bx(ix,iy,iz,useNew);
       outputFile
 	<< ix << "\t"
 	<< iy << "\t"
 	<< iz << "\t"
-	<< B0.x() << "\t"
-	<< B0.y() << "\t"
-	<< B0.z() << "\t"
-	<< D0.x() << "\t"
-	<< D0.y() << "\t"
-	<< D0.z() << "\n";	      
+	<< Bx0 << "\t"
+	<< Dx0 << "\n";	      
     }
    outputFile.close();
 }
