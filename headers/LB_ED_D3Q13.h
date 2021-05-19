@@ -10,15 +10,23 @@ Actualizacion:
 #include <iostream>
 #include <fstream>
 #include <cmath>
-#include "Distribution.h"
+//#include "Distribution.h"
 //#include "Vector.h"
-//using namespace std;
-/*
-const int Lx=1;
-const int Ly=1;
-const int Lz=100;
-*/
-//Constates e0 y mu0 (INTOCABLE).
+using namespace std;
+
+int Lx=100;
+int Ly=100;
+int Lz=100;
+
+const int rS=2;
+const int jS=2;
+const int pS=3;
+const int iS=4;
+
+int sizef = Lx*Ly*Lz*rS*jS*pS*iS;
+int sizef0 = Lx*Ly*Lz*rS;
+
+
 const double C=1.0/sqrt(2.0);
 const double eps0=1.0;
 const double mu0=2.0;
@@ -29,7 +37,6 @@ const double UmUtau=1-Utau;
 	       
 class LatticeBoltzmann{
 protected:
-  int Lx=1,Ly=1,Lz=1;
   double V0[3]={0.0,0.0,0.0};
   double e0[3]={0.0,0.0,0.0};
   double b0[3]={0.0,0.0,0.0};
@@ -38,17 +45,16 @@ protected:
   double vx[12];	double vy[12];	double vz[12];
   double ex[24];	double ey[24];	double ez[24];
   double bx[24];	double by[24];	double bz[24];
-  // V[0][i][p]=V^p_ix,  V[1][i][p]=V^p_iy, V[2][i][p]=V^p_iz
-// vector3D e[24]; //e[0][j][i][p]=e^p_ijx,e[1][j][i][p]=e^p_ijy,e[2][j][i][p]=e^p_ijz,
-// vector3D b[24]; //b[0][j][i][p]=b^p_ijx,b[1][j][i][p]=b^p_ijy,b[2][j][i][p]=b^p_ijz,
+ 
+  double * f = nullptr; double * fnew = nullptr;
+  double * f0 = nullptr; double * f0new = nullptr;
 
-  Distribution f= Distribution(Lx,Ly,Lz,false);		Distribution fnew = Distribution(Lx,Ly,Lz,false);
-  Distribution f0 = Distribution(Lx,Ly,Lz,true);	Distribution f0new = Distribution(Lx,Ly,Lz,true);
+  //Distribution f= Distribution(Lx,Ly,Lz,false);		Distribution fnew = Distribution(Lx,Ly,Lz,false);
+  //Distribution f0 = Distribution(Lx,Ly,Lz,true);	Distribution f0new = Distribution(Lx,Ly,Lz,true);
   
-  //double f[Lx][Ly][Lz][2][2][4][3], fnew[Lx][Ly][Lz][2][2][4][3]; // f[ix][iy][iz][r][j][i][p]
-  //double f0[Lx][Ly][Lz][2], f0new[Lx][Ly][Lz][2]; // f[ix][iy][iz][r]
 public:
   LatticeBoltzmann(void);
+  ~LatticeBoltzmann(void);
   void ResizeDomain(int Lx0, int Ly0, int Lz0);
   double rho(int ix, int iy, int iz, bool useNew);
   //campos
@@ -90,7 +96,8 @@ public:
 LatticeBoltzmann::LatticeBoltzmann(void){
   int imp=0,rec=0,rec1=0,rec2=0;
   double pi4=M_PI*0.25, sq2=sqrt(2.0);
-
+  f = new double[sizef];	fnew = new double[sizef];
+  f0 = new double[sizef0];	f0new = new double[sizef0];
    
   V[0][0][0]=1;	V[1][0][0]=1;	V[2][0][0]=0;    //Plano XY p=0
   V[0][1][0]=-1;V[1][1][0]=1;	V[2][1][0]=0;	 //Plano XY p=0
@@ -148,71 +155,84 @@ LatticeBoltzmann::LatticeBoltzmann(void){
 void LatticeBoltzmann::ResizeDomain(int Lx0, int Ly0, int Lz0)
 {
   Lx=Lx0;	Ly=Ly0;		Lz=Lz0;
-  f = Distribution(Lx,Ly,Lz,false);	fnew = Distribution(Lx,Ly,Lz,false);
-  f0 = Distribution(Lx,Ly,Lz,true);	f0new = Distribution(Lx,Ly,Lz,true); 
+  f = new double[sizef];	fnew = new double[sizef];
+  f0 = new double[sizef0];	f0new = new double[sizef0];  
+}
+LatticeBoltzmann::~LatticeBoltzmann()
+{
+  delete f ;	delete fnew;
+  delete f0;	delete f0new;  
 }
 double LatticeBoltzmann::rho(int ix, int iy, int iz, bool useNew)
 {
-  double sum=0;
+  double sum=0;int k=0;int k0=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
-      for(int j=0;j<2;j++) 
- 	sum += useNew? fnew.function(0,j,p,i,ix,iy,iz) : f.function(0,j,p,i,ix,iy,iz);
-  sum += f0(0,ix,iy,iz);
+      for(int j=0;j<2;j++){
+	k=j + i*jS + p*jS*iS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+ 	sum += useNew? (*(fnew+k)) : (*(f+k));}
+  k0=iz*rS + iy*rS*Lz + ix*rS*Lz*Ly;
+  sum += (*f0+k0);
   return sum;
 }
 double LatticeBoltzmann::Dx(int ix, int iy, int iz, bool useNew)
 {
-  double sum=0;
+  double sum=0;int k=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
-      for(int j=0;j<2;j++)	
-	sum += useNew? fnew.function(0,j,p,i,ix,iy,iz)*ex[j+i*2+p*8] : f.function(0,j,p,i,ix,iy,iz)*ex[j+i*2+p*8];
+      for(int j=0;j<2;j++){
+	k=j + i*jS + p*jS*iS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+	sum += useNew? (*(fnew+k))*ex[j+i*2+p*8] : (*(f+k))*ex[j+i*2+p*8];}
   return sum;
 }
 double LatticeBoltzmann::Dy(int ix, int iy, int iz, bool useNew)
 {
-  double sum=0;
+  double sum=0;int k=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
-      for(int j=0;j<2;j++)	
-	sum += useNew? fnew.function(0,j,p,i,ix,iy,iz)*ey[j+i*2+p*8] : f.function(0,j,p,i,ix,iy,iz)*ey[j+i*2+p*8];
+      for(int j=0;j<2;j++){
+	k=j + i*jS + p*jS*iS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+	sum += useNew? (*(fnew+k))*ey[j+i*2+p*8] : (*(f+k))*ey[j+i*2+p*8] ;}
   return sum;
 }
 double LatticeBoltzmann::Dz(int ix, int iy, int iz, bool useNew)
 {
-  double sum=0;
+  double sum=0;int k=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
-      for(int j=0;j<2;j++)	
-	sum += useNew? fnew.function(0,j,p,i,ix,iy,iz)*ez[j+i*2+p*8] : f.function(0,j,p,i,ix,iy,iz)*ez[j+i*2+p*8];
+      for(int j=0;j<2;j++){
+	k=j + i*jS + p*jS*iS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+	sum += useNew? (*(fnew+k))*ez[j+i*2+p*8] : (*(f+k))*ez[j+i*2+p*8] ;}		
   return sum;
 }
 double LatticeBoltzmann::Bx(int ix, int iy, int iz, bool useNew)
 {
-  double sum=0;
+  double sum=0;int k=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
-      for(int j=0;j<2;j++)	
-	sum += useNew? fnew.function(1,j,p,i,ix,iy,iz)*bx[j+i*2+p*8] : f.function(1,j,p,i,ix,iy,iz)*bx[j+i*2+p*8];
+      for(int j=0;j<2;j++){
+	k=j + i*jS + p*jS*iS + iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+	sum += useNew? (*(fnew+k))*bx[j+i*2+p*8] : (*(f+k))*bx[j+i*2+p*8] ;}		
   return sum;
 }
 double LatticeBoltzmann::By(int ix, int iy, int iz, bool useNew)
 {
-  double sum=0;
+  double sum=0;int k=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
-      for(int j=0;j<2;j++)	
-	sum += useNew? fnew.function(1,j,p,i,ix,iy,iz)*by[j+i*2+p*8] : f.function(1,j,p,i,ix,iy,iz)*by[j+i*2+p*8];
+      for(int j=0;j<2;j++){
+	k=j + i*jS + p*jS*iS + iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+	sum += useNew? (*(fnew+k))*by[j+i*2+p*8] : (*(f+k))*by[j+i*2+p*8] ;}    
   return sum;
 }
 double LatticeBoltzmann::Bz(int ix, int iy, int iz, bool useNew)
 {
-  double sum=0;
+  double sum=0;int k=0;
   for(int p=0;p<3;p++)
     for(int i=0;i<4;i++)      
-      for(int j=0;j<2;j++)	
-	sum += useNew? fnew.function(1,j,p,i,ix,iy,iz)*bz[j+i*2+p*8] : f.function(1,j,p,i,ix,iy,iz)*bz[j+i*2+p*8];
+      for(int j=0;j<2;j++){
+	k=j + i*jS + p*jS*iS + iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+	sum += useNew? (*(fnew+k))*bz[j+i*2+p*8] : (*(f+k))*bz[j+i*2+p*8] ;}	
   return sum;
 }
 double LatticeBoltzmann::Ex(double&Dx0, double&epsr)
@@ -336,7 +356,7 @@ double LatticeBoltzmann::feq0(double&rho0)
 }
 void LatticeBoltzmann::Colisione(int &t)
 {
-  int ix=0,iy=0,iz=0,r=0,j=0,i=0,p=0;
+  int k=0,k0=0,ix=0,iy=0,iz=0,r=0,j=0,i=0,p=0;
   double Epsr=0,Mur=0,Sigma=0,denominator=0,factor=0;
   double rho0=0;
   double Dx0,Bx0,Ex0,Hx0,Jx0,Jxp0,Exp0;
@@ -370,14 +390,16 @@ void LatticeBoltzmann::Colisione(int &t)
 		    vJp = (vx[p*4+i]*Jxp0+vy[p*4+i]*Jyp0+vz[p*4+i]*Jzp0);
 		    eEp = (ex[j+i*2+p*8]*Exp0+ey[j+i*2+p*8]*Eyp0+ez[j+i*2+p*8]*Ezp0);
 		    bB = (bx[j+i*2+p*8]*Bx0+by[j+i*2+p*8]*By0+bz[j+i*2+p*8]*Bz0);
-		    fnew(r,j,p,i,ix,iy,iz)=UmUtau*f.function(r,j,p,i,ix,iy,iz)+Utau*feq(Epsr,Mur,vJp,eEp,bB,r);
-		    f0new(r,ix,iy,iz)=UmUtau*f0.function(r,ix,iy,iz)+Utau*feq0(rho0);
+		    k = j + i*jS + p*jS*iS + r*iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+		    (*(fnew+k))=UmUtau*(*(f+k))+Utau*feq(Epsr,Mur,vJp,eEp,bB,r);
+		    k0 = r + iz*rS + iy*rS*Lz + ix*rS*Lz*Ly;
+		    (*(f0new+k0))=UmUtau*(*(f0+k0))+Utau*feq0(rho0);
 		  }
 	}
 }
 void LatticeBoltzmann::Adveccione(void)
 {
-  int jx=0,jy=0,jz=0;
+  int k=0,k0=0,q=0,q0=0,jx=0,jy=0,jz=0;
   for(int ix=0;ix<Lx;ix++)
     for(int iy=0;iy<Ly;iy++)
       for(int iz=0;iz<Lz;iz++)
@@ -392,13 +414,17 @@ void LatticeBoltzmann::Adveccione(void)
 		  else{jy=iy+(int)V[1][i][p];};
 		  if(iz==0 || iz==Lz-1){jz=iz;}
 		  else{jz=iz+(int)V[2][i][p];};
-		  	       
-		  f(r,j,p,i,jx,jy,jz) = fnew.function(r,j,p,i,ix,iy,iz);
-		  f0(r,ix,iy,iz) = f0new.function(r,ix,iy,iz);
+		  k = j + i*jS + p*jS*iS + r*iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;	       
+		  q = j + i*jS + p*jS*iS + r*iS*jS*pS + jz*iS*jS*rS*pS + jy*iS*jS*rS*pS*Lz + jx*iS*jS*rS*pS*Lz*Ly;
+		  k0 = r + iz*rS + iy*rS*Lz + ix*rS*Lz*Ly;
+		  q0 = r + jz*rS + jy*rS*Lz + jx*rS*Lz*Ly;
+		  (*(f+q)) = (*(fnew+k));
+		  (*(f0+q0)) = (*(f0new+k0));
 		}
 }
 void LatticeBoltzmann::Inicie(void)
 {
+  int k=0,k0=0;
   double Epsr,Mur;
   double rho0;
   double vJp, eEp, bB;
@@ -415,8 +441,10 @@ void LatticeBoltzmann::Inicie(void)
 		for(int i=0;i<4;i++)
 		  for(int j=0;j<2;j++)
 		    {
-		      f(r,j,p,i,ix,iy,iz) = feq(Epsr,Mur,vJp,eEp,bB,r);
-		      f0(r,ix,iy,iz) = feq0(rho0);
+		      k = j + i*jS + p*jS*iS + r*iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+		      (*(f+k)) = feq(Epsr,Mur,vJp,eEp,bB,r);
+		      k0 = r + iz*rS + iy*rS*Lz + ix*rS*Lz*Ly;
+		      (*(f0+k0)) = feq0(rho0);
 		    }
 	  }
 }

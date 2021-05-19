@@ -31,7 +31,7 @@ Dipolo::Dipolo(void)
 }
 void Dipolo::ColisioneDipolo(int &t)
 {
-  int ix=0,iy=0,iz=0,r=0,j=0,i=0,p=0;
+  int k=0,k0=0,ix=0,iy=0,iz=0,r=0,j=0,i=0,p=0;
   double Epsr=0,Mur=0,Sigma=0,denominator=0,factor=0;
   double rho0=0;
   double Dx0,Bx0,Ex0,Hx0,Jx0,Jxp0,Exp0;
@@ -64,14 +64,16 @@ void Dipolo::ColisioneDipolo(int &t)
 		    vJp = (vx[p*4+i]*Jxp0+vy[p*4+i]*Jyp0+vz[p*4+i]*Jzp0);
 		    eEp = (ex[j+i*2+p*8]*Exp0+ey[j+i*2+p*8]*Eyp0+ez[j+i*2+p*8]*Ezp0);
 		    bB = (bx[j+i*2+p*8]*Bx0+by[j+i*2+p*8]*By0+bz[j+i*2+p*8]*Bz0);
-		    fnew(r,j,p,i,ix,iy,iz)=UmUtau*f.function(r,j,p,i,ix,iy,iz)+Utau*feq(Epsr,Mur,vJp,eEp,bB,r);
-		    f0new(r,ix,iy,iz)=UmUtau*f0.function(r,ix,iy,iz)+Utau*feq0(rho0);
+		    k = j + i*jS + p*jS*iS + r*iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+		    (*(fnew+k))=UmUtau*(*(f+k))+Utau*feq(Epsr,Mur,vJp,eEp,bB,r);
+		    k0 = r + iz*rS + iy*rS*Lz + ix*rS*Lz*Ly;
+		    (*(f0new+k0))=UmUtau*(*(f0+k0))+Utau*feq0(rho0);
 		  }
 	}
 }
 void Dipolo::FreeBoundAdvection(void)
 {
-  int jx=0,jy=0,jz=0;
+  int k=0,k0=0,q=0,q0=0,jx=0,jy=0,jz=0;
   for(int ix=0;ix<Lx;ix++)
     for(int iy=0;iy<Ly;iy++)
       for(int iz=0;iz<Lz;iz++)
@@ -86,15 +88,19 @@ void Dipolo::FreeBoundAdvection(void)
 		  else{jy=iy+(int)V[1][i][p];};
 		  if(iz==0 || iz==Lz-1){jz=iz;}
 		  else{jz=iz+(int)V[2][i][p];};
-		  	       
-		  f(r,j,p,i,jx,jy,jz) = fnew.function(r,j,p,i,ix,iy,iz);
-		  f0(r,ix,iy,iz) = f0new.function(r,ix,iy,iz);
+		  k = j + i*jS + p*jS*iS + r*iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;	       
+		  q = j + i*jS + p*jS*iS + r*iS*jS*pS + jz*iS*jS*rS*pS + jy*iS*jS*rS*pS*Lz + jx*iS*jS*rS*pS*Lz*Ly;
+		  k0 = r + iz*rS + iy*rS*Lz + ix*rS*Lz*Ly;
+		  q0 = r + jz*rS + jy*rS*Lz + jx*rS*Lz*Ly;
+		  (*(f+q)) = (*(fnew+k));
+		  (*(f0+q0)) = (*(f0new+k0));	       		 
 		}
 }
 void Dipolo::InicieDipolo(void)
 {
   //double Eo=0.001,Bo=Eo/C,alp=0.01;
   //int iz0=40;
+  int k=0,k0=0;
   double Epsr,Mur;
   double rho0;
   double vJp, eEp, bB;
@@ -111,8 +117,10 @@ void Dipolo::InicieDipolo(void)
 		for(int i=0;i<4;i++)
 		  for(int j=0;j<2;j++)
 		    {
-		      f(r,j,p,i,ix,iy,iz) = feq(Epsr,Mur,vJp,eEp,bB,r);
-		      f0(r,ix,iy,iz) = feq0(rho0);		      
+		      k = j + i*jS + p*jS*iS + r*iS*jS*pS + iz*iS*jS*rS*pS + iy*iS*jS*rS*pS*Lz + ix*iS*jS*rS*pS*Lz*Ly;
+		      (*(f+k)) = feq(Epsr,Mur,vJp,eEp,bB,r);
+		      k0 = r + iz*rS + iy*rS*Lz + ix*rS*Lz*Ly;
+		      (*(f0+k0)) = feq0(rho0);		      
 		    }
 	  }
 }
@@ -143,7 +151,7 @@ int main(int argc, char * argv[])
     }
   const char* fileName = argv[2];
   Dipolo Dip = Dipolo();
-  Dip.ResizeDomain(Lx0,Ly0,Lz0);
+  //Dip.ResizeDomain(Lx0,Ly0,Lz0);
   int t=0,tmax=atoi(argv[1]);
   
   
